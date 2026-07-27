@@ -1,0 +1,9 @@
+node_modules/
+*.tsbuildinfo
+sim.cjs
+
+# Per-machine Claude Code permission grants, not project config.
+.claude/settings.local.json
+
+# `docs/` is the production build and IS committed — that is what GitHub Pages
+# serves. Regenerate it with `npm run build` before pushing a change.
