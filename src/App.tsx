@@ -74,9 +74,11 @@ export function App() {
             frontierKey={frontierKey}
             homeId={state.homeId}
             selectedId={selected}
-            battleTargetId={
-              state.battle?.outcome === 'ongoing' ? state.battle.targetId : null
-            }
+            battleTargetKey={state.battles
+              .filter((b) => b.outcome === 'ongoing')
+              .map((b) => b.targetId)
+              .sort()
+              .join(',')}
             focusId={focus.id}
             focusNonce={focus.nonce}
             onSelect={setSelected}

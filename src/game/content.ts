@@ -102,6 +102,28 @@ export const BUILDINGS: BuildingDef[] = [
     effects: { effMult: 0.05, lossRed: 0.01 },
   },
   {
+    id: 'motor_pool',
+    name: 'Motor Transport Pool',
+    blurb: 'Lorries instead of boots. The same offensive covers the ground in less time.',
+    category: 'military',
+    baseCost: 700,
+    growth: 1.18,
+    requires: 'motorisation',
+    effects: { campaignSpeed: 0.03 },
+  },
+  {
+    id: 'field_hq',
+    name: 'Field Army Headquarters',
+    blurb:
+      'Another complete staff, capable of planning and running an offensive of its own.',
+    category: 'military',
+    baseCost: 6000,
+    // Steep: each additional front is worth far more than the last.
+    growth: 1.9,
+    requires: 'staff_college',
+    effects: { fronts: 1 },
+  },
+  {
     id: 'arsenal',
     name: 'Strategic Arsenal',
     blurb: 'Hardened silos and a very short chain of command. Nobody wants to test it.',
@@ -246,6 +268,28 @@ export const TECHS: TechDef[] = [
     effects: { effMult: 0.25, lossRed: 0.05 },
   },
   {
+    id: 'motorisation',
+    name: 'Motorisation',
+    blurb:
+      'An army that drives instead of marches. Campaigns finish in a fraction of the time.',
+    category: 'military',
+    cost: 280,
+    requires: ['radio'],
+    effects: { campaignSpeed: 0.2 },
+    unlocks: ['motor_pool'],
+  },
+  {
+    id: 'staff_college',
+    name: 'Staff College',
+    blurb:
+      'Enough trained planners to run a second offensive without the first one falling apart.',
+    category: 'military',
+    cost: 420,
+    requires: ['radio'],
+    effects: { fronts: 1 },
+    unlocks: ['field_hq'],
+  },
+  {
     id: 'mobilisation',
     name: 'National Mobilisation Act',
     blurb: 'The reserve lists stop being theoretical.',
@@ -283,6 +327,26 @@ export const TECHS: TechDef[] = [
     requires: ['administration', 'schooling'],
     effects: { assimMult: 0.6 },
     unlocks: ['academy_civil'],
+  },
+  {
+    id: 'theatre_command',
+    name: 'Theatre Command',
+    blurb:
+      'Independent theatres, each with its own reserves and timetable. Two more wars at once.',
+    category: 'military',
+    cost: 3400,
+    requires: ['staff_college', 'combined_arms'],
+    effects: { fronts: 2, campaignSpeed: 0.08 },
+  },
+  {
+    id: 'airlift',
+    name: 'Strategic Airlift',
+    blurb:
+      'Divisions delivered to the far side of the world overnight. Distance stops mattering.',
+    category: 'military',
+    cost: 4200,
+    requires: ['motorisation', 'automation'],
+    effects: { campaignSpeed: 0.22, lossRed: 0.05 },
   },
   {
     id: 'deterrence',
@@ -335,6 +399,16 @@ export const TECHS: TechDef[] = [
     effects: { effMult: 0.6, lossRed: 0.15 },
   },
   {
+    id: 'orbital_command',
+    name: 'Orbital Command Network',
+    blurb:
+      'Every front watched from above and directed in real time. Wars everywhere, all at once.',
+    category: 'military',
+    cost: 28000,
+    requires: ['theatre_command', 'precision'],
+    effects: { fronts: 3, campaignSpeed: 0.15 },
+  },
+  {
     id: 'hegemony',
     name: 'Global Hegemony',
     blurb: 'The world’s institutions now run on your calendar. Everything gets easier.',
@@ -348,6 +422,8 @@ export const TECHS: TechDef[] = [
       manpowerMult: 0.5,
       assimMult: 1,
       garrisonRed: 0.3,
+      fronts: 2,
+      campaignSpeed: 0.1,
     },
   },
 ];

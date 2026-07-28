@@ -1,4 +1,4 @@
-import { Button, Modal, Progress, Result, Space, Statistic, Typography } from 'antd';
+import { Alert, Button, Modal, Progress, Space, Tag, Typography } from 'antd';
 import { CONQUEST_SHARE, fmtPercent, fmtShort } from '../game/engine';
 import { useGame } from '../state/GameProvider';
 import type { Battle } from '../game/types';
@@ -11,7 +11,7 @@ function BattleGraph({ battle }: { battle: Battle }) {
   const peak = Math.max(battle.attackerStart, battle.defenderStart, 1);
   const span = Math.max(samples[samples.length - 1]?.t ?? 1, 1);
   const W = 460;
-  const H = 90;
+  const H = 64;
 
   const line = (pick: (s: (typeof samples)[number]) => number) =>
     samples
@@ -30,51 +30,65 @@ function BattleGraph({ battle }: { battle: Battle }) {
   );
 }
 
-export function BattleModal() {
-  const { state, retreat, dismissBattle } = useGame();
-  const battle = state.battle;
-  if (!battle) return null;
+const OUTCOME: Record<
+  Battle['outcome'],
+  { label: string; color: string; note: (b: Battle) => string }
+> = {
+  ongoing: { label: 'In progress', color: 'processing', note: () => '' },
+  won: {
+    label: 'Annexed',
+    color: 'success',
+    note: (b) =>
+      `${fmtShort(b.attacker)} march home. The territory contributes ${fmtPercent(
+        CONQUEST_SHARE,
+      )} of its economy today and more as it integrates.`,
+  },
+  lost: {
+    label: 'Destroyed',
+    color: 'error',
+    note: (b) =>
+      `${b.targetName} holds with ${fmtShort(
+        b.defender,
+      )} troops left. They will not recover those losses for free — try again with more.`,
+  },
+  retreat: {
+    label: 'Withdrawn',
+    color: 'warning',
+    note: (b) =>
+      `${fmtShort(b.attacker)} brought home. ${b.targetName} is left holding ${fmtShort(
+        b.defender,
+      )}.`,
+  },
+};
 
+function Front({ battle }: { battle: Battle }) {
+  const { retreat } = useGame();
   const ongoing = battle.outcome === 'ongoing';
   const attackerPct = (battle.attacker / battle.attackerStart) * 100;
   const defenderPct = (battle.defender / battle.defenderStart) * 100;
-
-  const title =
-    battle.outcome === 'won'
-      ? `${battle.targetName} has fallen`
-      : battle.outcome === 'lost'
-        ? `Defeat in ${battle.targetName}`
-        : battle.outcome === 'retreat'
-          ? `Withdrawal from ${battle.targetName}`
-          : `The battle for ${battle.targetName}`;
+  const meta = OUTCOME[battle.outcome];
 
   return (
-    <Modal
-      open
-      title={title}
-      closable={!ongoing}
-      maskClosable={false}
-      onCancel={dismissBattle}
-      width={560}
-      footer={
-        ongoing ? (
-          <Button danger onClick={retreat}>
-            Order withdrawal
+    <div className={`front${ongoing ? '' : ' front-done'}`}>
+      <div className="battle-row">
+        <Space size={8}>
+          <Text strong>{battle.targetName}</Text>
+          <Tag color={meta.color} bordered={false}>
+            {meta.label}
+          </Tag>
+        </Space>
+        {ongoing && (
+          <Button size="small" danger onClick={() => retreat(battle.targetId)}>
+            Withdraw
           </Button>
-        ) : (
-          <Button type="primary" onClick={dismissBattle}>
-            Continue
-          </Button>
-        )
-      }
-    >
-      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+        )}
+      </div>
+
+      <div className="front-bars">
         <div>
           <div className="battle-row">
-            <Text strong style={{ color: '#69b1ff' }}>
-              Your forces
-            </Text>
-            <Text>
+            <Text style={{ fontSize: 12, color: '#69b1ff' }}>Your forces</Text>
+            <Text style={{ fontSize: 12 }}>
               {fmtShort(battle.attacker)}{' '}
               <Text type="secondary">/ {fmtShort(battle.attackerStart)}</Text>
             </Text>
@@ -82,17 +96,15 @@ export function BattleModal() {
           <Progress
             percent={Math.max(0, attackerPct)}
             showInfo={false}
+            size="small"
             strokeColor="#1668dc"
             status={ongoing ? 'active' : 'normal'}
           />
         </div>
-
         <div>
           <div className="battle-row">
-            <Text strong style={{ color: '#ff7875' }}>
-              {battle.targetName}
-            </Text>
-            <Text>
+            <Text style={{ fontSize: 12, color: '#ff7875' }}>Defenders</Text>
+            <Text style={{ fontSize: 12 }}>
               {fmtShort(battle.defender)}{' '}
               <Text type="secondary">/ {fmtShort(battle.defenderStart)}</Text>
             </Text>
@@ -100,19 +112,17 @@ export function BattleModal() {
           <Progress
             percent={Math.max(0, defenderPct)}
             showInfo={false}
+            size="small"
             strokeColor="#dc4446"
-            status={ongoing ? 'active' : 'normal'}
           />
         </div>
-
         <div>
           <div className="battle-row">
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Campaign progress
+              Ground covered
             </Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {battle.elapsed.toFixed(2)}s / {battle.length.toFixed(2)}s to cover the
-              ground
+              {battle.elapsed.toFixed(2)}s / {battle.length.toFixed(2)}s
             </Text>
           </div>
           <Progress
@@ -122,58 +132,79 @@ export function BattleModal() {
             strokeColor="#d89614"
           />
         </div>
+      </div>
 
+      {ongoing ? (
         <BattleGraph battle={battle} />
+      ) : (
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {meta.note(battle)}
+        </Text>
+      )}
+    </div>
+  );
+}
 
-        <Space size={32}>
-          <Statistic
-            title="Elapsed"
-            value={`${battle.elapsed.toFixed(2)}s`}
-            valueStyle={{ fontSize: 15 }}
-          />
-          <Statistic
-            title="Your losses"
-            value={fmtShort(battle.attackerStart - battle.attacker)}
-            valueStyle={{ fontSize: 15 }}
-          />
-          <Statistic
-            title="Enemy losses"
-            value={fmtShort(battle.defenderStart - battle.defender)}
-            valueStyle={{ fontSize: 15 }}
-          />
+export function BattleModal() {
+  const { state, derived, dismissBattles, warRoomOpen, setWarRoomOpen } = useGame();
+  if (state.battles.length === 0 || !warRoomOpen) return null;
+
+  const ongoing = state.battles.filter((b) => b.outcome === 'ongoing');
+  const finished = state.battles.filter((b) => b.outcome !== 'ongoing');
+  const allDone = ongoing.length === 0;
+
+  const title = allDone
+    ? finished.length === 1
+      ? `${finished[0].targetName}: ${OUTCOME[finished[0].outcome].label.toLowerCase()}`
+      : `${finished.length} campaigns concluded`
+    : `War room — ${ongoing.length} of ${derived.maxFronts} front${
+        derived.maxFronts === 1 ? '' : 's'
+      } engaged`;
+
+  const committed = ongoing.reduce((s, b) => s + b.attacker, 0);
+
+  return (
+    <Modal
+      open
+      title={title}
+      // Always dismissible: with several fronts running you need to get back to
+      // the war panel to open the next one.
+      closable
+      maskClosable
+      onCancel={() => {
+        if (allDone) dismissBattles();
+        setWarRoomOpen(false);
+      }}
+      width={600}
+      footer={
+        <Space>
+          {finished.length > 0 && (
+            <Button type={allDone ? 'primary' : 'default'} onClick={dismissBattles}>
+              {allDone ? 'Continue' : `Clear ${finished.length} finished`}
+            </Button>
+          )}
+          {!allDone && (
+            <Button onClick={() => setWarRoomOpen(false)}>
+              Back to the map
+            </Button>
+          )}
         </Space>
-
-        {battle.outcome === 'won' && (
-          <Result
-            status="success"
-            style={{ padding: '8px 0' }}
-            title={`${battle.targetName} annexed`}
-            subTitle={`${fmtShort(battle.attacker)} troops march home. The territory
-              contributes ${fmtPercent(CONQUEST_SHARE)} of its economy today
-              and more as it integrates.`}
-          />
-        )}
-        {battle.outcome === 'lost' && (
-          <Result
-            status="error"
-            style={{ padding: '8px 0' }}
-            title="The offensive is destroyed"
-            subTitle={`${battle.targetName} holds with ${fmtShort(
-              battle.defender,
-            )} troops left. They will not recover those losses — try again with more.`}
-          />
-        )}
-        {battle.outcome === 'retreat' && (
-          <Result
-            status="warning"
-            style={{ padding: '8px 0' }}
-            title="Forces withdrawn"
-            subTitle={`${fmtShort(battle.attacker)} brought home. ${
-              battle.targetName
-            } is left holding ${fmtShort(battle.defender)}.`}
-          />
-        )}
-      </Space>
+      }
+    >
+      {ongoing.length > 1 && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={`${fmtShort(committed)} troops committed across ${ongoing.length} fronts`}
+          description="Each front fights independently. Losing one does not affect the others."
+        />
+      )}
+      <div className="front-list">
+        {[...ongoing, ...finished].map((b) => (
+          <Front key={b.targetId} battle={b} />
+        ))}
+      </div>
     </Modal>
   );
 }

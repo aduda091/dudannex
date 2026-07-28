@@ -76,19 +76,28 @@ while (elapsed < limit && Object.keys(state.owned).length < TOTAL_COUNTRIES) {
   const pick = pickBuilding(state);
   if (pick) build(state, pick);
 
-  // Attack the weakest reachable target when the odds are comfortable.
-  if (!state.battle || state.battle.outcome !== 'ongoing') {
-    state.battle = null;
+  // Clear concluded fronts, then fill every free one with the weakest target
+  // we can beat, committing only what each needs so the rest stay available.
+  state.battles = state.battles.filter((b) => b.outcome === 'ongoing');
+  {
     const d = derive(state);
+    let free = d.maxFronts - d.activeFronts;
+    const engaged = new Set(state.battles.map((b) => b.targetId));
     const targets = d.frontier
+      .filter((id) => !engaged.has(id))
       .map((id) => ({ id, army: enemyArmy(state, id) }))
       .sort((a, b) => a.army - b.army);
+
     for (const t of targets) {
-      const f = forecast(state, t.id, d.deployable);
-      if (f.win && d.deployable > f.required * 1.25) {
-        declareWar(state, t.id, d.deployable);
-        break;
-      }
+      if (free <= 0) break;
+      const available = derive(state).deployable;
+      if (available <= 0) break;
+      const f = forecast(state, t.id, available);
+      if (!f.win) continue;
+      // Send a comfortable margin, but never the whole army when more fronts
+      // are still worth opening.
+      const commit = Math.min(available, Math.max(f.required * 1.3, available / (free || 1)));
+      if (declareWar(state, t.id, commit)) free -= 1;
     }
   }
 
@@ -97,12 +106,18 @@ while (elapsed < limit && Object.keys(state.owned).length < TOTAL_COUNTRIES) {
     seen = count;
     if ([2, 5, 10, 25, 50, 100, 150, TOTAL_COUNTRIES].includes(count)) {
       const d = derive(state);
+      const toughest = d.frontier
+        .map((id) => enemyArmy(state, id))
+        .reduce((a, b) => Math.max(a, b), 0);
       milestones.push(
-        `${String(count).padStart(3)} countries @ ${fmtDuration(elapsed).padEnd(10)} ` +
-          `industry ${fmtShort(d.industryRate).padStart(8)}/s  ` +
-          `research ${fmtShort(d.researchRate).padStart(8)}/s  ` +
-          `army ${fmtShort(d.deployable).padStart(8)}(+${fmtShort(d.garrison)}g)/${fmtShort(d.armyCap)}  ` +
-          `techs ${state.techs.length}`,
+        `${String(count).padStart(3)} @ ${fmtDuration(elapsed).padEnd(9)} ` +
+          `ind ${fmtShort(d.industryRate).padStart(8)}/s ` +
+          `army ${fmtShort(d.deployable).padStart(8)}/${fmtShort(d.armyCap).padEnd(8)} ` +
+          `fronts ${d.maxFronts} ` +
+          `camp -${(d.campaignSpeed * 100).toFixed(0).padStart(2)}% ` +
+          `techs ${String(state.techs.length).padStart(2)} ` +
+          `| world armed +${fmtShort(state.worldArmament).padStart(7)} ` +
+          `toughest foe ${fmtShort(toughest).padStart(8)}`,
       );
     }
   }

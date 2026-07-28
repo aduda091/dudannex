@@ -29,7 +29,8 @@ export interface WorldMapProps {
   frontierKey: string;
   homeId: string | null;
   selectedId: string | null;
-  battleTargetId: string | null;
+  /** Comma-joined ids of every country currently under attack. */
+  battleTargetKey: string;
   /** Country to centre the view on when `focusNonce` changes. */
   focusId: string | null;
   /** Bumped by the parent to request a re-centre, even on the same country. */
@@ -49,7 +50,7 @@ function WorldMapImpl({
   frontierKey,
   homeId,
   selectedId,
-  battleTargetId,
+  battleTargetKey,
   focusId,
   focusNonce,
   onSelect,
@@ -65,6 +66,7 @@ function WorldMapImpl({
     owned.set(id, Number(bucket));
   }
   const frontier = new Set(frontierKey.split(',').filter(Boolean));
+  const atWar = new Set(battleTargetKey.split(',').filter(Boolean));
 
   const drag = useRef<{
     startX: number;
@@ -210,7 +212,7 @@ function WorldMapImpl({
             if (isFrontier) classes.push('frontier');
             if (c.id === homeId) classes.push('home');
             if (c.id === selectedId) classes.push('selected');
-            if (c.id === battleTargetId) classes.push('battling');
+            if (atWar.has(c.id)) classes.push('battling');
             return (
               <path
                 key={c.id}

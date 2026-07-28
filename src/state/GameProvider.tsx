@@ -24,12 +24,20 @@ export interface GameApi {
   /** Seconds of progress granted on load, if any. Cleared once acknowledged. */
   offlineGain: number | null;
   acknowledgeOffline: () => void;
+  /**
+   * Whether the war room is on screen. It has to be dismissible even while
+   * fighting, otherwise the dialog blocks the very panel you open new fronts
+   * from. Declaring a war brings it back.
+   */
+  warRoomOpen: boolean;
+  setWarRoomOpen: (open: boolean) => void;
   start: (countryId: string) => void;
   build: (buildingId: string) => void;
   research: (techId: string) => void;
   declareWar: (targetId: string, commit: number) => void;
-  retreat: () => void;
-  dismissBattle: () => void;
+  retreat: (targetId: string) => void;
+  /** Clear every concluded front from the war room. */
+  dismissBattles: () => void;
   setMobilization: (value: number) => void;
   exportText: () => string;
   importText: (text: string) => void;
@@ -42,6 +50,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef<GameState>(null!);
   const [, setFrame] = useState(0);
   const [offlineGain, setOfflineGain] = useState<number | null>(null);
+  const [warRoomOpen, setWarRoomOpen] = useState(true);
 
   // Load once, before the first paint, so the UI never flashes an empty world.
   if (stateRef.current === null) {
@@ -104,11 +113,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }),
       build: (id) => mutate((s) => engine.build(s, id)),
       research: (id) => mutate((s) => engine.research(s, id)),
-      declareWar: (id, commit) => mutate((s) => engine.declareWar(s, id, commit)),
-      retreat: () => mutate((s) => engine.retreat(s)),
-      dismissBattle: () =>
+      warRoomOpen,
+      setWarRoomOpen,
+      declareWar: (id, commit) =>
         mutate((s) => {
-          if (s.battle && s.battle.outcome !== 'ongoing') s.battle = null;
+          if (engine.declareWar(s, id, commit)) setWarRoomOpen(true);
+        }),
+      retreat: (targetId) => mutate((s) => engine.retreat(s, targetId)),
+      dismissBattles: () =>
+        mutate((s) => {
+          s.battles = s.battles.filter((b) => b.outcome === 'ongoing');
         }),
       setMobilization: (v) =>
         mutate((s) => {
@@ -130,7 +144,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       },
     }),
     // `derived` and the state ref change every frame; the rest are stable.
-    [derived, offlineGain, mutate, invalidate],
+    [derived, offlineGain, warRoomOpen, mutate, invalidate],
   );
 
   return <GameContext.Provider value={api}>{children}</GameContext.Provider>;

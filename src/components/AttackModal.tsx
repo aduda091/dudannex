@@ -24,8 +24,21 @@ export function AttackModal({
   const { state, derived, declareWar } = useGame();
   const [share, setShare] = useState(100);
 
+  // Default to a comfortable winning margin rather than the whole army —
+  // sending everything at one neighbour is what stops you opening a second
+  // front, and it is almost never what you want even with only one.
   useEffect(() => {
-    if (targetId) setShare(100);
+    if (!targetId) return;
+    const pool = derived.deployable;
+    if (pool <= 0) {
+      setShare(100);
+      return;
+    }
+    const needed = forecast(state, targetId, pool).required * 1.5;
+    const pct = Math.ceil((needed / pool) * 100);
+    setShare(Math.max(5, Math.min(100, pct)));
+    // Recomputed only when the target changes; the slider is yours after that.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetId]);
 
   if (!targetId) return null;
@@ -50,7 +63,17 @@ export function AttackModal({
     >
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <div>
-          <Text type="secondary">Commit {share}% of your deployable army</Text>
+          <Text type="secondary">
+            Commit {share}% of your deployable army — {fmtShort(commit)} of{' '}
+            {fmtShort(derived.deployable)}
+            {derived.maxFronts > 1 && (
+              <>
+                {' · '}
+                {derived.maxFronts - derived.activeFronts} front
+                {derived.maxFronts - derived.activeFronts === 1 ? '' : 's'} free
+              </>
+            )}
+          </Text>
           <Slider
             min={5}
             max={100}

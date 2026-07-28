@@ -1,6 +1,12 @@
 import { Card, Col, Divider, List, Progress, Row, Slider, Statistic, Tag, Typography } from 'antd';
 import { COUNTRY_STATS, baseProduction } from '../data/countryStats';
-import { countryName, fmtDuration, fmtRate, fmtShort } from '../game/engine';
+import {
+  countryName,
+  fmtDuration,
+  fmtPercent,
+  fmtRate,
+  fmtShort,
+} from '../game/engine';
 import { useGame } from '../state/GameProvider';
 
 const { Text, Paragraph } = Typography;
@@ -113,6 +119,54 @@ export function EmpirePanel() {
             <Statistic
               title="Time played"
               value={fmtDuration(uptime)}
+              valueStyle={{ fontSize: 15 }}
+            />
+          </Col>
+          <Col span={8}>
+            <Statistic
+              title="War fronts"
+              value={`${derived.activeFronts} / ${derived.maxFronts}`}
+              valueStyle={{ fontSize: 15 }}
+            />
+          </Col>
+          <Col span={8}>
+            <Statistic
+              title="Campaign time"
+              value={`×${derived.campaignFactor.toFixed(2)}`}
+              valueStyle={{ fontSize: 15 }}
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      <Card size="small" title="The rest of the world" style={{ marginTop: 12 }}>
+        <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 0 }}>
+          Every country you do not own is still building. Each adds its own
+          production to its army over time — so large economies rearm fast — and
+          the whole world pushes harder the more industry you command.
+        </Paragraph>
+        <Row gutter={12}>
+          <Col span={8}>
+            <Statistic
+              title="Rearmament"
+              value={fmtShort(state.worldArmament)}
+              valueStyle={{ fontSize: 15 }}
+            />
+          </Col>
+          <Col span={8}>
+            <Statistic
+              title="Pace"
+              value={`×${derived.armamentPace.toFixed(2)}`}
+              valueStyle={{
+                fontSize: 15,
+                color: derived.armamentPace > 2 ? '#d89614' : undefined,
+              }}
+            />
+          </Col>
+          <Col span={8}>
+            <Statistic
+              title="Your share"
+              value={fmtPercent(derived.potentialShare)}
               valueStyle={{ fontSize: 15 }}
             />
           </Col>

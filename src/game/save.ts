@@ -27,9 +27,7 @@ function slim(state: GameState): GameState {
   return {
     ...state,
     log: state.log.slice(0, 30),
-    battle: state.battle
-      ? { ...state.battle, samples: state.battle.samples.slice(-40) }
-      : null,
+    battles: state.battles.map((b) => ({ ...b, samples: b.samples.slice(-40) })),
   };
 }
 
@@ -112,6 +110,23 @@ export function parseSave(text: string): GameState {
   merged.damaged ??= {};
   merged.buildings ??= {};
   merged.techs ??= [];
+
+  // Saves written before multi-front warfare carried a single `battle`. Note
+  // the spread over createInitialState() already leaves `battles` as an empty
+  // array, so emptiness — not absence — is what marks a save as needing the
+  // migration. Dropping the old battle would strand the troops committed to it.
+  const legacy = (env.state as { battle?: GameState['battles'][number] | null })
+    .battle;
+  if (!Array.isArray(merged.battles)) merged.battles = [];
+  if (legacy && merged.battles.length === 0) merged.battles = [legacy];
+  delete (merged as { battle?: unknown }).battle;
+
+  // Saves from before the world rearmed have neither field; starting both at
+  // zero means those countries begin rearming from now, which is correct.
+  merged.worldArmament ??= 0;
+  merged.damagedAt ??= {};
+  // A campaign in progress from an older save has no recorded length.
+  for (const b of merged.battles) b.length ??= 20;
   // `lastTick` is deliberately preserved: it is what offline catch-up measures
   // against on load. Only fall back to now if it is missing or nonsensical
   // (a clock skew far in the future would otherwise freeze the simulation).

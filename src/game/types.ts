@@ -42,6 +42,10 @@ export interface Effects {
   lossRed: number;
   /** Fractional reduction in the troops tied down policing occupied land. */
   garrisonRed: number;
+  /** Extra simultaneous offensives you can run, on top of the base one. */
+  fronts: number;
+  /** Fractional reduction in how long a campaign takes to cover its ground. */
+  campaignSpeed: number;
 }
 
 export type EffectKey = keyof Effects;
@@ -124,9 +128,21 @@ export interface GameState {
   techs: string[];
   /** Share of industry income diverted into recruitment, 0..1. */
   mobilization: number;
-  battle: Battle | null;
+  /** Offensives currently running. Length is capped by the `fronts` effect. */
+  battles: Battle[];
   /** Armies of countries the player has fought but not yet conquered. */
   damaged: Record<string, number>;
+  /**
+   * The `worldArmament` reading when each damaged country was last fought, so
+   * its rearmament resumes from that point rather than from the start.
+   */
+  damagedAt: Record<string, number>;
+  /**
+   * How far the rest of the world has rearmed, in units of accumulated
+   * production. Every unowned country's army grows by its own production times
+   * this figure, so a large economy rearms faster than a small one.
+   */
+  worldArmament: number;
   lastTick: number;
   startedAt: number;
   battlesWon: number;

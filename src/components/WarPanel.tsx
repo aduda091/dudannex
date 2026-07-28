@@ -11,10 +11,11 @@ import {
   Typography,
 } from 'antd';
 import { AimOutlined, WarningOutlined } from '@ant-design/icons';
-import { COUNTRY_STATS } from '../data/countryStats';
+import { COUNTRY_STATS, baseProduction } from '../data/countryStats';
 import {
   countryName,
   enemyArmy,
+  fmtRate,
   fmtShort,
   forecast,
 } from '../game/engine';
@@ -24,7 +25,7 @@ import { AttackModal } from './AttackModal';
 const { Text } = Typography;
 
 export function WarPanel({ onFocusCountry }: { onFocusCountry?: (id: string) => void }) {
-  const { state, derived } = useGame();
+  const { state, derived, setWarRoomOpen } = useGame();
   const [filter, setFilter] = useState('');
   const [target, setTarget] = useState<string | null>(null);
 
@@ -37,21 +38,39 @@ export function WarPanel({ onFocusCountry }: { onFocusCountry?: (id: string) => 
       name: countryName(id),
       army: enemyArmy(state, id),
       pop: COUNTRY_STATS[id]?.pop ?? 0,
+      // What this country is adding to its own army every second, right now.
+      rearming: baseProduction(COUNTRY_STATS[id]) * derived.armamentRate,
     }))
     .filter((t) => t.name.toLowerCase().includes(needle))
     .sort((a, b) => a.army - b.army);
 
-  const battling = state.battle?.outcome === 'ongoing';
+  const engaged = state.battles.filter((b) => b.outcome === 'ongoing');
+  const frontsFull = engaged.length >= derived.maxFronts;
 
   return (
     <div className="panel">
-      {battling && (
+      {engaged.length > 0 && (
         <Alert
-          type="warning"
+          type={frontsFull ? 'warning' : 'info'}
           showIcon
           icon={<WarningOutlined />}
-          message={`Fighting in ${state.battle?.targetName}`}
-          description="You can only run one offensive at a time."
+          message={`${engaged.length} of ${derived.maxFronts} front${
+            derived.maxFronts === 1 ? '' : 's'
+          } engaged`}
+          description={
+            frontsFull
+              ? `Fighting in ${engaged
+                  .map((b) => b.targetName)
+                  .join(', ')}. Research more staff capacity to open another front.`
+              : `Fighting in ${engaged.map((b) => b.targetName).join(', ')}. You can still open ${
+                  derived.maxFronts - engaged.length
+                } more.`
+          }
+          action={
+            <Button size="small" onClick={() => setWarRoomOpen(true)}>
+              War room
+            </Button>
+          }
           style={{ marginBottom: 12 }}
         />
       )}
@@ -68,12 +87,18 @@ export function WarPanel({ onFocusCountry }: { onFocusCountry?: (id: string) => 
         {targets.map((t) => {
           const f = forecast(state, t.id, derived.deployable);
           const damaged = state.damaged[t.id] !== undefined;
+          const underAttack = engaged.some((b) => b.targetId === t.id);
           return (
             <Card key={t.id} size="small" className="item-card">
               <div className="item-head">
                 <Space size={6}>
                   <Text strong>{t.name}</Text>
-                  {damaged && (
+                  {underAttack && (
+                    <Tag color="processing" bordered={false}>
+                      at war
+                    </Tag>
+                  )}
+                  {damaged && !underAttack && (
                     <Tag color="orange" bordered={false}>
                       bloodied
                     </Tag>
@@ -91,10 +116,10 @@ export function WarPanel({ onFocusCountry }: { onFocusCountry?: (id: string) => 
                     size="small"
                     danger={!f.win}
                     type={f.win ? 'primary' : 'default'}
-                    disabled={battling || derived.deployable <= 0}
+                    disabled={underAttack || frontsFull || derived.deployable <= 0}
                     onClick={() => setTarget(t.id)}
                   >
-                    Attack
+                    {underAttack ? 'Engaged' : 'Attack'}
                   </Button>
                 </Space>
               </div>
@@ -102,6 +127,11 @@ export function WarPanel({ onFocusCountry }: { onFocusCountry?: (id: string) => 
                 <Statistic
                   title="Defenders"
                   value={fmtShort(t.army)}
+                  suffix={
+                    <span style={{ fontSize: 11, color: '#d89614' }}>
+                      +{fmtRate(t.rearming)}
+                    </span>
+                  }
                   valueStyle={{ fontSize: 14 }}
                 />
                 <Statistic

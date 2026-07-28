@@ -30,6 +30,18 @@ armies grind each other down in real time and you can order a withdrawal at any
 point. Winning annexes the country: its borders become yours, and it starts
 contributing half its economy immediately.
 
+You begin able to run one offensive at a time. Staff College, Theatre Command
+and the Orbital Command Network each raise that, up to ten simultaneous fronts,
+and Field Army Headquarters buys more at a steeply rising price. Each front
+fights independently — losing one does not affect the others — and the attack
+dialog defaults to committing a comfortable winning margin rather than your
+whole army, so there is something left to open the next front with.
+
+Motorisation, Strategic Airlift and the Motor Transport Pool cut how long a
+campaign takes to cover its ground, down to a floor of a quarter of the base
+time. Shorter campaigns also cost fewer casualties, since you bleed for every
+second you are in the field.
+
 ### The three things that stop you snowballing
 
 A conquest game where each win makes the next one easier is over in five
@@ -45,6 +57,26 @@ minutes. Three mechanics pace it:
 3. **Campaign length.** Destroying an army is not the same as occupying a
    country. Every campaign takes time proportional to the target's population,
    however lopsided the odds, and you take casualties for the whole march.
+4. **The world rearms.** Every country you do not own is building too.
+
+### How the world fights back
+
+Each unowned country adds its own production to its army over time, so large
+economies rearm fast and minor ones barely move — the United States gains
+hundreds of troops a second late on, Montenegro almost nothing.
+
+How hard the whole world pushes is set by *your industrial output measured
+against the entire planet's*, from a fifth of the baseline pace when you are
+nobody up to a hard ceiling once you dominate. Territory share would be the
+wrong trigger: the great powers are always the last countries standing, so it
+stays near zero for most of a run and the world would only wake up when it no
+longer mattered. Industry compounds from your first factory, so it tracks how
+dangerous you actually look.
+
+No country can pass ten times the army it started with. That rail never binds
+in normal play — it is there because your own ceiling only climbs with the
+logarithm of banked industry while enemy growth is linear in time, so without
+it, leaving the game running for long enough could make a save unwinnable.
 
 ### Combat
 
@@ -110,8 +142,9 @@ and vice versa.
 
 `scripts/simulate.ts` plays the game headlessly with a greedy bot and prints
 pacing milestones. It is how the numbers above were tuned — a perfect bot with
-no idle time takes roughly an hour and a half to take the world, from any
-starting country.
+no idle time takes roughly 20–40 minutes to take the world, depending on where
+it starts. North Korea is the hard opening: a huge army, no economy to replace
+it, and nothing but great powers on its borders.
 
 ```bash
 npx esbuild scripts/simulate.ts --bundle --platform=node --loader:.json=json --outfile=sim.cjs
@@ -132,7 +165,8 @@ node sim.cjs 191 12     # country id, hour budget
 
 ## Known limits
 
-This is the first iteration, and the world is a punching bag: other countries
-never build, research, or attack you. They only defend, and any damage you do
-to an army you fail to finish off is permanent. An obvious next step is giving
-the rest of the world an economy and a reason to object.
+The rest of the world builds but does not think: countries rearm on schedule
+and defend when attacked, but they never research, never expand, and never
+declare war on you. Damage you inflict on an army you fail to finish is kept —
+they rebuild from the wreckage rather than from full strength. The obvious next
+step is letting them take territory of their own.

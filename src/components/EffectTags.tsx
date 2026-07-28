@@ -23,6 +23,11 @@ const LABELS: Record<EffectKey, { text: (v: number) => string; good: boolean }> 
   costRed: { text: (v) => `${neg(v)} building costs`, good: true },
   lossRed: { text: (v) => `${neg(v)} own casualties`, good: true },
   garrisonRed: { text: (v) => `${neg(v)} garrison needs`, good: true },
+  fronts: {
+    text: (v) => `${v > 0 ? '+' : ''}${Math.round(v)} war front${Math.abs(v) === 1 ? '' : 's'}`,
+    good: true,
+  },
+  campaignSpeed: { text: (v) => `${neg(v)} campaign time`, good: true },
 };
 
 export function EffectTags({ effects }: { effects: Partial<Effects> }) {

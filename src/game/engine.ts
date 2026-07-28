@@ -7,6 +7,7 @@ import {
 } from '../data/countryStats';
 import { BUILDINGS, BUILDING_BY_ID, TECH_BY_ID } from './content';
 import type {
+  Battle,
   Effects,
   GameState,
   LogEntry,
@@ -51,16 +52,64 @@ const BASE_CONVERSION = 0.15;
 export const DEFENDER_BONUS = 1.15;
 /** Sets the pace of combat: an even fight takes roughly 1/k seconds. */
 const COMBAT_K = 0.14;
+/** However fast your doctrine, a campaign cannot drop below this fraction. */
+const MIN_CAMPAIGN_FACTOR = 0.25;
 /**
  * Destroying an army is not the same as occupying a country. However lopsided
  * the odds, a campaign still has to cover ground, and bigger countries take
  * longer. This floor on campaign length is what paces the whole game: without
  * it, an overwhelming force annexes a nation the instant war is declared.
+ *
+ * `speed` is the accumulated `campaignSpeed` effect, as a fraction.
  */
-export function campaignLength(countryId: string): number {
+export function campaignLength(countryId: string, speed = 0): number {
   const pop = COUNTRY_STATS[countryId]?.pop ?? 1;
-  return 15 + 10 * Math.log10(1 + pop);
+  const base = 15 + 10 * Math.log10(1 + pop);
+  return base * Math.max(MIN_CAMPAIGN_FACTOR, 1 - speed);
 }
+
+// --- World rearmament ------------------------------------------------------
+
+/**
+ * Baseline pace at which the rest of the world builds up, per second, in units
+ * of its own production. An untouched country adds roughly
+ * `production * WORLD_ARMAMENT_RATE` to its army every second.
+ */
+const WORLD_ARMAMENT_RATE = 0.022;
+/**
+ * The world does not arm in a vacuum — it arms because of you.
+ *
+ * The trigger is your industrial output measured against the whole planet's,
+ * not the share of territory you hold. Territory share is the wrong signal: the
+ * great powers are always the last countries standing, so it stays near zero
+ * for most of a run and the world never reacts until it no longer matters.
+ * Industry starts compounding from the first factory, so this tracks how
+ * dangerous you actually look.
+ */
+const ARMAMENT_FLOOR = 0.2;
+const ARMAMENT_REACTION = 3.2;
+/** However far ahead you get, the world can only mobilise so hard. */
+const ARMAMENT_CEILING = 8;
+/**
+ * No country can rearm past this multiple of the army it started with. Without
+ * a rail, an idle game left running for hours would grow armies nobody could
+ * ever beat — the player's own ceiling only climbs with the log of banked
+ * industry, so linear enemy growth wins any waiting game. This never binds in
+ * normal play; it exists so walking away cannot make a save unwinnable.
+ */
+const REARM_CEILING = 10;
+
+/** Total military potential of every country on the map. A constant. */
+export const WORLD_POTENTIAL = WORLD.countries.reduce(
+  (sum, c) => sum + (COUNTRY_STATS[c.id] ? baseMilitary(COUNTRY_STATS[c.id]) : 0),
+  0,
+);
+
+/** Total baseline industrial output of the planet. A constant. */
+export const WORLD_PRODUCTION = WORLD.countries.reduce(
+  (sum, c) => sum + (COUNTRY_STATS[c.id] ? baseProduction(COUNTRY_STATS[c.id]) : 0),
+  0,
+);
 /** Battles are integrated at this fixed step for stable, tick-rate-independent results. */
 const COMBAT_STEP = 0.05;
 /** Integration gained per second by a fresh conquest, before civic bonuses. */
@@ -92,6 +141,8 @@ const ZERO_EFFECTS: Effects = {
   costRed: 0,
   lossRed: 0,
   garrisonRed: 0,
+  fronts: 0,
+  campaignSpeed: 0,
 };
 
 export function createInitialState(): GameState {
@@ -106,8 +157,10 @@ export function createInitialState(): GameState {
     buildings: {},
     techs: [],
     mobilization: 0.4,
-    battle: null,
+    battles: [],
     damaged: {},
+    damagedAt: {},
+    worldArmament: 0,
     lastTick: Date.now(),
     startedAt: Date.now(),
     battlesWon: 0,
@@ -161,7 +214,24 @@ export interface Derived {
   territories: number;
   /** Countries you could declare war on right now. */
   frontier: string[];
+  /** How many offensives you may run at once. */
+  maxFronts: number;
+  /** How many are running right now. */
+  activeFronts: number;
+  /** Accumulated campaign-speed bonus, as a fraction. */
+  campaignSpeed: number;
+  /** What campaign length is actually multiplied by, after the floor. */
+  campaignFactor: number;
+  /** Your share of the world's total military potential, 0..1. */
+  potentialShare: number;
+  /** World rearmament per second, in units of enemy production. */
+  armamentRate: number;
+  /** How hard the world is mobilising, as a multiple of its baseline pace. */
+  armamentPace: number;
 }
+
+/** Hard ceiling on simultaneous offensives, so the war room stays readable. */
+const MAX_FRONTS = 10;
 
 export function accumulateEffects(state: GameState): Effects {
   const e: Effects = { ...ZERO_EFFECTS };
@@ -227,6 +297,13 @@ export function derive(state: GameState): Derived {
     attackMultiplier: 1 + effects.effMult,
     territories: Object.keys(state.owned).length,
     frontier: frontierOf(state),
+    maxFronts: Math.min(MAX_FRONTS, 1 + Math.floor(effects.fronts)),
+    activeFronts: state.battles.filter((b) => b.outcome === 'ongoing').length,
+    campaignSpeed: effects.campaignSpeed,
+    campaignFactor: Math.max(MIN_CAMPAIGN_FACTOR, 1 - effects.campaignSpeed),
+    potentialShare: WORLD_POTENTIAL > 0 ? potential / WORLD_POTENTIAL : 0,
+    armamentRate: WORLD_ARMAMENT_RATE * armamentReaction(industryRate),
+    armamentPace: armamentReaction(industryRate),
   };
 }
 
@@ -241,11 +318,29 @@ export function frontierOf(state: GameState): string[] {
   return [...out];
 }
 
-/** Current army of an unowned country, accounting for damage you have done. */
+/**
+ * Current army of an unowned country: where it started (or the wreckage you
+ * left it in), plus everything it has built since. Rearmament is its own
+ * production multiplied by the world's accumulated armament, measured from
+ * whenever you last fought it.
+ */
 export function enemyArmy(state: GameState, id: string): number {
   const stats = COUNTRY_STATS[id];
   if (!stats) return 0;
-  return state.damaged[id] ?? baseMilitary(stats);
+  const base = baseMilitary(stats);
+  const from = state.damaged[id] ?? base;
+  const since = Math.max(0, state.worldArmament - (state.damagedAt[id] ?? 0));
+  const grown = from + baseProduction(stats) * since;
+  return Math.max(0.5, Math.min(grown, base * REARM_CEILING));
+}
+
+/**
+ * How hard the world is mobilising, as a multiple of the base pace, given your
+ * industrial output relative to the entire planet's.
+ */
+export function armamentReaction(industryRate: number): number {
+  const threat = WORLD_PRODUCTION > 0 ? industryRate / WORLD_PRODUCTION : 0;
+  return ARMAMENT_FLOOR + ARMAMENT_REACTION * Math.min(ARMAMENT_CEILING, threat);
 }
 
 export function buildingCost(state: GameState, buildingId: string): number {
@@ -332,7 +427,7 @@ export function forecast(
   targetId: string,
   commit: number,
 ): Forecast {
-  const { attackMultiplier, effects } = derive(state);
+  const { attackMultiplier, effects, campaignSpeed } = derive(state);
   const defender = enemyArmy(state, targetId);
   const lossFactor = Math.max(0.15, 1 - effects.lossRed);
   const defenceWeight = DEFENDER_BONUS * lossFactor;
@@ -353,7 +448,7 @@ export function forecast(
   // If the shooting would be over before the campaign can physically advance,
   // the schedule takes over: the defence is ground down linearly and you bleed
   // for the whole march. Average enemy strength across it is half its start.
-  const floorLength = campaignLength(targetId);
+  const floorLength = campaignLength(targetId, campaignSpeed);
   const paced = gap > 0 && lanchesterDuration < floorLength;
   const pacedLosses = COMBAT_K * defenceWeight * (defender / 2) * floorLength;
 
@@ -372,9 +467,17 @@ export function forecast(
   return { defender, required, win, survivors, duration };
 }
 
+/** Offensives currently under way. */
+export function activeBattles(state: GameState) {
+  return state.battles.filter((b) => b.outcome === 'ongoing');
+}
+
 export function canAttack(state: GameState, targetId: string): boolean {
-  if (state.battle && state.battle.outcome === 'ongoing') return false;
   if (targetId in state.owned) return false;
+  const active = activeBattles(state);
+  // One offensive per country, and no more fronts than your staff can run.
+  if (active.some((b) => b.targetId === targetId)) return false;
+  if (active.length >= derive(state).maxFronts) return false;
   return frontierOf(state).includes(targetId);
 }
 
@@ -390,7 +493,7 @@ export function declareWar(
 
   const defender = enemyArmy(state, targetId);
   state.army -= force;
-  state.battle = {
+  state.battles.push({
     targetId,
     targetName: countryName(targetId),
     attacker: force,
@@ -398,10 +501,10 @@ export function declareWar(
     defender,
     defenderStart: defender,
     elapsed: 0,
-    length: campaignLength(targetId),
+    length: campaignLength(targetId, derive(state).campaignSpeed),
     outcome: 'ongoing',
     samples: [{ t: 0, attacker: force, defender }],
-  };
+  });
   pushLog(
     state,
     'war',
@@ -411,12 +514,15 @@ export function declareWar(
 }
 
 /** Pull the surviving attackers home and leave the enemy bloodied. */
-export function retreat(state: GameState): void {
-  const b = state.battle;
-  if (!b || b.outcome !== 'ongoing') return;
+export function retreat(state: GameState, targetId: string): void {
+  const b = state.battles.find(
+    (x) => x.targetId === targetId && x.outcome === 'ongoing',
+  );
+  if (!b) return;
   b.outcome = 'retreat';
   state.army += b.attacker;
   state.damaged[b.targetId] = b.defender;
+  state.damagedAt[b.targetId] = state.worldArmament;
   pushLog(
     state,
     'war',
@@ -427,6 +533,7 @@ export function retreat(state: GameState): void {
 function conquer(state: GameState, targetId: string): void {
   state.owned[targetId] = CONQUEST_SHARE;
   delete state.damaged[targetId];
+  delete state.damagedAt[targetId];
   state.battlesWon += 1;
   pushLog(
     state,
@@ -437,12 +544,22 @@ function conquer(state: GameState, targetId: string): void {
   );
 }
 
-/** Advance an ongoing battle. Returns the outcome if it ended this call. */
-function advanceBattle(state: GameState, dt: number): void {
-  const b = state.battle;
-  if (!b || b.outcome !== 'ongoing') return;
+/** Advance every ongoing offensive. */
+function advanceBattles(state: GameState, dt: number): void {
+  if (activeBattles(state).length === 0) return;
+  // Derived once for all fronts — they share the same doctrine and economy.
+  const d = derive(state);
+  for (const b of [...state.battles]) {
+    if (b.outcome === 'ongoing') advanceBattle(state, b, dt, d);
+  }
+}
 
-  const { effects, attackMultiplier } = derive(state);
+function advanceBattle(
+  state: GameState,
+  b: Battle,
+  dt: number,
+  { effects, attackMultiplier }: Derived,
+): void {
   const lossFactor = Math.max(0.15, 1 - effects.lossRed);
 
   let remaining = Math.min(dt, 5);
@@ -490,6 +607,7 @@ function advanceBattle(state: GameState, dt: number): void {
   } else if (b.outcome === 'lost') {
     state.battlesLost += 1;
     state.damaged[b.targetId] = Math.max(0.5, b.defender);
+    state.damagedAt[b.targetId] = state.worldArmament;
     pushLog(
       state,
       'war',
@@ -511,8 +629,7 @@ export function tick(state: GameState, dt: number): void {
   // past that the spending would be wasted, so it falls back to the treasury.
   // Troops already fighting still count against the ceiling — otherwise
   // committing the whole army would free up the cap to raise a second one.
-  const inTheField =
-    state.battle?.outcome === 'ongoing' ? state.battle.attacker : 0;
+  const inTheField = activeBattles(state).reduce((sum, b) => sum + b.attacker, 0);
   const headroom = Math.max(0, d.armyCap - state.army - inTheField);
   const recruited = Math.min(headroom, d.recruitRate * dt);
   state.army += recruited;
@@ -529,7 +646,10 @@ export function tick(state: GameState, dt: number): void {
     }
   }
 
-  advanceBattle(state, dt);
+  // The rest of the world keeps building, and builds harder the bigger you get.
+  state.worldArmament += d.armamentRate * dt;
+
+  advanceBattles(state, dt);
   state.lastTick = Date.now();
 }
 
@@ -547,8 +667,8 @@ export function applyOffline(state: GameState): number {
     state.lastTick = Date.now();
     return 0;
   }
-  const frozen = state.battle;
-  state.battle = null;
+  const frozen = state.battles;
+  state.battles = [];
   // Coarse steps: the economy is smooth enough that 5s granularity is exact
   // for everything except the compounding population term, which barely moves.
   let left = seconds;
@@ -557,7 +677,7 @@ export function applyOffline(state: GameState): number {
     tick(state, step);
     left -= step;
   }
-  state.battle = frozen;
+  state.battles = frozen;
   state.lastTick = Date.now();
   return seconds;
 }
