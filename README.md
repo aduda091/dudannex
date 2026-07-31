@@ -138,6 +138,37 @@ node scripts/buildWorld.mjs
 `node scripts/validateData.mjs` checks that every country on the map has stats
 and vice versa.
 
+## Flags
+
+Flags appear beside country names in the picker, the war list, your territory
+list, the country drawer and the war room. They come from
+[`svg-country-flags`](https://www.npmjs.com/package/svg-country-flags) (public
+domain), copied into `public/flags/` by `scripts/buildFlags.mjs` — 173 images,
+about 490kB in total, each fetched only when something on screen needs it.
+
+The 100px PNGs are used rather than the SVGs: several SVG flags carry very
+detailed coats of arms (Serbia's is 181kB) which is absurd for something drawn
+at 14px, and PNGs render identically everywhere. Emoji flags were not an option
+— Chrome on Windows renders them as bare letter pairs.
+
+Each flag is displayed at a fixed height with its own natural width, because
+flags are not a common shape: Croatia is 2:1, Brazil 10:7, Switzerland square.
+Forcing them into one box would crop or stretch them.
+
+The ISO 3166-1 alpha-2 codes that name the files are derived from the numeric
+ids by `i18n-iso-countries` during `buildWorld.mjs`, not typed by hand — 175
+hand-written codes would eventually put Slovakia's flag on Slovenia.
+`scripts/checkFlags.mjs` asserts a set of known-confusable pairs and that every
+code has an image.
+
+N. Cyprus and Somaliland have no ISO code and render no flag rather than a
+guess.
+
+```bash
+node scripts/buildFlags.mjs   # refresh public/flags from the package
+node scripts/checkFlags.mjs   # verify the mapping
+```
+
 ## Balance harness
 
 `scripts/simulate.ts` plays the game headlessly with a greedy bot and prints

@@ -1,6 +1,8 @@
 export interface WorldCountry {
   id: string;
   name: string;
+  /** Lowercase ISO 3166-1 alpha-2, or null for states without one. */
+  iso2: string | null;
   /** Pre-projected SVG path data. */
   d: string;
   cx: number;

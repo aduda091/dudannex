@@ -10,6 +10,7 @@ import {
   forecast,
 } from '../game/engine';
 import { useGame } from '../state/GameProvider';
+import { Flag } from './Flag';
 
 const { Text } = Typography;
 
@@ -51,7 +52,12 @@ export function AttackModal({
   return (
     <Modal
       open
-      title={`Invade ${countryName(targetId)}`}
+      title={
+        <Space size={8}>
+          <Flag countryId={targetId} height={18} />
+          {`Invade ${countryName(targetId)}`}
+        </Space>
+      }
       okText={f.win ? 'Give the order' : 'Attack anyway'}
       okButtonProps={{ danger: !f.win, disabled: commit <= 0 }}
       onOk={() => {

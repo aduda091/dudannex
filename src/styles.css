@@ -404,6 +404,15 @@ input:not([type]) {
   gap: 8px;
 }
 
+/* Flags sit against a dark UI, so pale ones (Japan, Poland) need an edge to
+   stop them bleeding into the background. */
+.flag {
+  display: block;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+  flex: none;
+}
+
 .effect-tags {
   display: block;
   margin-bottom: 4px;

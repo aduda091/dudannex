@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { feature, neighbors } from 'topojson-client';
 import { geoCentroid, geoPath, geoEquirectangular } from 'd3-geo';
+import isoCountries from 'i18n-iso-countries';
 
 const require = createRequire(import.meta.url);
 const topo = require('world-atlas/countries-110m.json');
@@ -94,6 +95,23 @@ const EXCLUDED = new Set(['010', '260']); // Antarctica, Fr. S. Antarctic Lands
 const idOf = (f) =>
   SYNTHETIC_IDS[f.properties.name] ?? String(f.id).padStart(3, '0');
 
+/**
+ * Lowercase ISO 3166-1 alpha-2 code, used to pick a flag image. Derived from
+ * the numeric id rather than typed out by hand: 175 hand-written codes would
+ * eventually put Slovakia's flag on Slovenia, and a confidently wrong flag is
+ * worse than none in a game people might learn from.
+ *
+ * The de-facto states have no ISO code. Kosovo has a widely used user-assigned
+ * one; the other two get no flag rather than a guess.
+ */
+const SYNTHETIC_ISO2 = { X01: 'xk', X02: null, X03: null };
+
+const iso2Of = (id) => {
+  if (id in SYNTHETIC_ISO2) return SYNTHETIC_ISO2[id];
+  const alpha2 = isoCountries.numericToAlpha2(id);
+  return alpha2 ? alpha2.toLowerCase() : null;
+};
+
 const byId = new Map();
 const centroids = new Map();
 
@@ -169,6 +187,7 @@ const countries = fc.features
     return {
       id,
       name: f.properties.name,
+      iso2: iso2Of(id),
       d: path(f),
       cx: Math.round(cx * 10) / 10,
       cy: Math.round(cy * 10) / 10,

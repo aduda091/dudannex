@@ -1,6 +1,7 @@
 import { Alert, Button, Modal, Progress, Space, Tag, Typography } from 'antd';
 import { CONQUEST_SHARE, fmtPercent, fmtShort } from '../game/engine';
 import { useGame } from '../state/GameProvider';
+import { Flag } from './Flag';
 import type { Battle } from '../game/types';
 
 const { Text } = Typography;
@@ -72,6 +73,7 @@ function Front({ battle }: { battle: Battle }) {
     <div className={`front${ongoing ? '' : ' front-done'}`}>
       <div className="battle-row">
         <Space size={8}>
+          <Flag countryId={battle.targetId} height={14} />
           <Text strong>{battle.targetName}</Text>
           <Tag color={meta.color} bordered={false}>
             {meta.label}

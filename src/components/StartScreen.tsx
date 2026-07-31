@@ -7,9 +7,11 @@ import {
   Modal,
   Row,
   Select,
+  Space,
   Statistic,
   Typography,
 } from 'antd';
+import { Flag } from './Flag';
 import { FlagOutlined } from '@ant-design/icons';
 import { COUNTRY_STATS, baseMilitary, baseProduction, baseResearch } from '../data/countryStats';
 import { SPEEDRUN_MULTIPLIER, WORLD, fmtRate, fmtShort } from '../game/engine';
@@ -34,7 +36,18 @@ export function StartScreen() {
     () =>
       [...WORLD.countries]
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map((c) => ({ value: c.id, label: c.name })),
+        .map((c) => ({
+          value: c.id,
+          // `label` is what the dropdown renders; `title` is the plain string
+          // the search box filters on and shows once an option is chosen.
+          label: (
+            <Space size={8}>
+              <Flag countryId={c.id} height={13} />
+              {c.name}
+            </Space>
+          ),
+          title: c.name,
+        })),
     [],
   );
 
@@ -65,7 +78,8 @@ export function StartScreen() {
         value={choice}
         onChange={setChoice}
         options={options}
-        optionFilterProp="label"
+        optionFilterProp="title"
+        optionLabelProp="title"
         style={{ width: '100%' }}
         size="large"
       />
@@ -73,7 +87,10 @@ export function StartScreen() {
       {stats && country && (
         <Card size="small" style={{ marginTop: 16 }}>
           <Title level={5} style={{ marginTop: 0 }}>
-            {country.name}
+            <Space size={8}>
+              <Flag countryId={country.id} height={18} />
+              {country.name}
+            </Space>
           </Title>
           <Row gutter={16}>
             <Col span={6}>
@@ -117,7 +134,10 @@ export function StartScreen() {
                     borderColor: choice === s.id ? '#1668dc' : undefined,
                   }}
                 >
-                  <Text strong>{name}</Text>
+                  <Space size={6}>
+                    <Flag countryId={s.id} height={12} />
+                    <Text strong>{name}</Text>
+                  </Space>
                   <br />
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     {s.note}

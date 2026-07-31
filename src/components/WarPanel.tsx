@@ -21,6 +21,7 @@ import {
 } from '../game/engine';
 import { useGame } from '../state/GameProvider';
 import { AttackModal } from './AttackModal';
+import { Flag } from './Flag';
 
 const { Text } = Typography;
 
@@ -92,6 +93,7 @@ export function WarPanel({ onFocusCountry }: { onFocusCountry?: (id: string) => 
             <Card key={t.id} size="small" className="item-card">
               <div className="item-head">
                 <Space size={6}>
+                  <Flag countryId={t.id} height={13} />
                   <Text strong>{t.name}</Text>
                   {underAttack && (
                     <Tag color="processing" bordered={false}>

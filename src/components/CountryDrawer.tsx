@@ -13,6 +13,7 @@ import {
 } from '../game/engine';
 import { useGame } from '../state/GameProvider';
 import { AttackModal } from './AttackModal';
+import { Flag } from './Flag';
 
 const { Text } = Typography;
 
@@ -40,7 +41,14 @@ export function CountryDrawer({
         onClose={onClose}
         placement="right"
         width={380}
-        title={country?.name}
+        title={
+          country && (
+            <Space size={8}>
+              <Flag countryId={country.id} height={18} />
+              {country.name}
+            </Space>
+          )
+        }
         extra={
           isOwned ? (
             <Tag color={countryId === state.homeId ? 'gold' : 'blue'} bordered={false}>
@@ -110,8 +118,12 @@ export function CountryDrawer({
                     key={n}
                     bordered={false}
                     color={n in state.owned ? 'blue' : undefined}
+                    style={{ marginBottom: 4 }}
                   >
-                    {countryName(n)}
+                    <Space size={5}>
+                      <Flag countryId={n} height={11} />
+                      {countryName(n)}
+                    </Space>
                   </Tag>
                 ))}
               </div>

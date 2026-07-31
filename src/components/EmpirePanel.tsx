@@ -1,4 +1,17 @@
-import { Card, Col, Divider, List, Progress, Row, Slider, Statistic, Tag, Typography } from 'antd';
+import {
+  Card,
+  Col,
+  Divider,
+  List,
+  Progress,
+  Row,
+  Slider,
+  Space,
+  Statistic,
+  Tag,
+  Typography,
+} from 'antd';
+import { Flag } from './Flag';
 import { COUNTRY_STATS, baseProduction } from '../data/countryStats';
 import {
   countryName,
@@ -185,14 +198,15 @@ export function EmpirePanel() {
           <List.Item>
             <div style={{ width: '100%' }}>
               <div className="battle-row">
-                <Text>
-                  {countryName(t.id)}
+                <Space size={6}>
+                  <Flag countryId={t.id} height={12} />
+                  <Text>{countryName(t.id)}</Text>
                   {t.id === state.homeId && (
-                    <Tag color="gold" bordered={false} style={{ marginLeft: 6 }}>
+                    <Tag color="gold" bordered={false}>
                       home
                     </Tag>
                   )}
-                </Text>
+                </Space>
                 <Text type="secondary">{fmtRate(t.output)}</Text>
               </div>
               {t.integration < 1 && (
