@@ -1,8 +1,18 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Col, Modal, Row, Select, Statistic, Typography } from 'antd';
+import {
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Modal,
+  Row,
+  Select,
+  Statistic,
+  Typography,
+} from 'antd';
 import { FlagOutlined } from '@ant-design/icons';
 import { COUNTRY_STATS, baseMilitary, baseProduction, baseResearch } from '../data/countryStats';
-import { WORLD, fmtRate, fmtShort } from '../game/engine';
+import { SPEEDRUN_MULTIPLIER, WORLD, fmtRate, fmtShort } from '../game/engine';
 import { useGame } from '../state/GameProvider';
 
 const { Paragraph, Title, Text } = Typography;
@@ -18,6 +28,7 @@ const SUGGESTED = [
 export function StartScreen() {
   const { start } = useGame();
   const [choice, setChoice] = useState<string>('191');
+  const [speedrun, setSpeedrun] = useState(false);
 
   const options = useMemo(
     () =>
@@ -118,14 +129,27 @@ export function StartScreen() {
         </Row>
       </div>
 
+      <Card size="small" style={{ marginTop: 16 }}>
+        <Checkbox checked={speedrun} onChange={(e) => setSpeedrun(e.target.checked)}>
+          <Text strong>Speedrun</Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Runs the whole simulation {SPEEDRUN_MULTIPLIER}× faster — production,
+            research, recruitment, campaigns and the world's rearmament all
+            together, so the balance is unchanged. Fixed for the run.
+          </Text>
+        </Checkbox>
+      </Card>
+
       <Button
         type="primary"
         size="large"
         block
-        style={{ marginTop: 20 }}
-        onClick={() => start(choice)}
+        style={{ marginTop: 16 }}
+        onClick={() => start(choice, speedrun ? SPEEDRUN_MULTIPLIER : 1)}
       >
         Take command of {country?.name}
+        {speedrun && ` at ${SPEEDRUN_MULTIPLIER}×`}
       </Button>
     </Modal>
   );

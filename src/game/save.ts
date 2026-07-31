@@ -125,6 +125,8 @@ export function parseSave(text: string): GameState {
   // zero means those countries begin rearming from now, which is correct.
   merged.worldArmament ??= 0;
   merged.damagedAt ??= {};
+  merged.speed = Math.max(1, merged.speed ?? 1);
+  merged.victorySeen ??= false;
   // A campaign in progress from an older save has no recorded length.
   for (const b of merged.battles) b.length ??= 20;
   // `lastTick` is deliberately preserved: it is what offline catch-up measures

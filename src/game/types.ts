@@ -148,4 +148,14 @@ export interface GameState {
   battlesWon: number;
   battlesLost: number;
   log: LogEntry[];
+  /**
+   * Simulation speed multiplier. 1 is normal; a speedrun runs at 10. Chosen
+   * when the game starts and kept for the run.
+   */
+  speed: number;
+  /**
+   * Set once the player has seen the victory screen, so winning does not
+   * re-trap them behind the same dialog on every reload.
+   */
+  victorySeen: boolean;
 }

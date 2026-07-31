@@ -75,6 +75,8 @@ function WorldMapImpl({
     matrix: DOMMatrix | null;
     moved: boolean;
   } | null>(null);
+  /** Survives pointerup so the trailing click after a pan can be ignored. */
+  const swallowClick = useRef(false);
 
   const clamp = useCallback((v: ViewBox): ViewBox => {
     const w = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, v.w));
@@ -146,6 +148,7 @@ function WorldMapImpl({
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    swallowClick.current = false;
     drag.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -164,6 +167,7 @@ function WorldMapImpl({
     const dy = to.y - from.y;
     if (Math.abs(e.clientX - d.startX) + Math.abs(e.clientY - d.startY) > 4) {
       d.moved = true;
+      swallowClick.current = true;
     }
     setView(clamp({ ...d.origin, x: d.origin.x - dx, y: d.origin.y - dy }));
   };
@@ -174,13 +178,28 @@ function WorldMapImpl({
   };
 
   const handleClick = (id: string) => {
-    if (drag.current?.moved) return;
+    // `click` fires after `pointerup`, by which point the drag state has
+    // already been torn down — so the "did we drag?" flag has to outlive it,
+    // or panning the map would select whatever you happened to release over.
+    if (swallowClick.current) {
+      swallowClick.current = false;
+      return;
+    }
     onSelect(id);
   };
 
   const hoveredCountry = hovered
     ? WORLD.countries.find((c) => c.id === hovered)
     : null;
+  // Conquered land flies your flag: the label reads as your country, not the
+  // one that used to be there. The drawer still names the individual territory.
+  const homeName = homeId
+    ? WORLD.countries.find((c) => c.id === homeId)?.name
+    : null;
+  const hoveredLabel =
+    hoveredCountry && owned.has(hoveredCountry.id) && homeName
+      ? homeName
+      : hoveredCountry?.name;
 
   return (
     <div className="map-shell">
@@ -232,7 +251,7 @@ function WorldMapImpl({
             fontSize={view.w / 48}
             textAnchor="middle"
           >
-            {hoveredCountry.name}
+            {hoveredLabel}
           </text>
         )}
       </svg>

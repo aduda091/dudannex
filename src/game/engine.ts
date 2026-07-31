@@ -166,19 +166,34 @@ export function createInitialState(): GameState {
     battlesWon: 0,
     battlesLost: 0,
     log: [],
+    speed: 1,
+    victorySeen: false,
   };
 }
 
-export function startGame(state: GameState, homeId: string): void {
+/** Multiplier applied to the simulation when speedrun mode is chosen. */
+export const SPEEDRUN_MULTIPLIER = 10;
+
+export function startGame(
+  state: GameState,
+  homeId: string,
+  speed = 1,
+): void {
   const stats = COUNTRY_STATS[homeId];
   state.homeId = homeId;
+  state.speed = speed;
   state.owned = { [homeId]: 1 };
   state.army = baseMilitary(stats);
   state.industry = 20;
   state.research = 0;
   state.startedAt = Date.now();
   state.lastTick = Date.now();
-  pushLog(state, 'system', `${countryName(homeId)} takes the field.`);
+  pushLog(
+    state,
+    'system',
+    `${countryName(homeId)} takes the field.` +
+      (speed > 1 ? ` Speedrun: the clock runs ${speed}x.` : ''),
+  );
 }
 
 export function countryName(id: string): string {
@@ -659,10 +674,13 @@ export function tick(state: GameState, dt: number): void {
  */
 export function applyOffline(state: GameState): number {
   if (!state.homeId) return 0;
-  const seconds = Math.min(
-    MAX_OFFLINE_SECONDS,
-    Math.max(0, (Date.now() - state.lastTick) / 1000),
-  );
+  // Real seconds away are capped, then run through the same speed multiplier
+  // as live play, so a speedrun does not stall the moment you close the tab.
+  const seconds =
+    Math.min(
+      MAX_OFFLINE_SECONDS,
+      Math.max(0, (Date.now() - state.lastTick) / 1000),
+    ) * Math.max(1, state.speed ?? 1);
   if (seconds < 5) {
     state.lastTick = Date.now();
     return 0;

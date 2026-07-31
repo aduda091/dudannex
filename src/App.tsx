@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Result, Tabs, Typography } from 'antd';
+import { Button, Modal, Popconfirm, Result, Space, Tabs, Typography } from 'antd';
 import {
   BankOutlined,
   BuildOutlined,
@@ -23,7 +23,8 @@ import { useGame } from './state/GameProvider';
 const { Text, Title } = Typography;
 
 export function App() {
-  const { state, derived, offlineGain, acknowledgeOffline } = useGame();
+  const { state, derived, offlineGain, acknowledgeOffline, acknowledgeVictory, reset } =
+    useGame();
   const [selected, setSelected] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ id: string | null; nonce: number }>({
     id: null,
@@ -58,7 +59,12 @@ export function App() {
         <div className="brand">
           <span className="brand-mark">◈</span>
           <div>
-            <div className="brand-name">Dudannex</div>
+            <div className="brand-name">
+              Dudannex
+              {state.speed > 1 && (
+                <span className="speed-badge">{state.speed}×</span>
+              )}
+            </div>
             <Text type="secondary" style={{ fontSize: 11 }}>
               {countryName(state.homeId)}
             </Text>
@@ -157,15 +163,47 @@ export function App() {
         </Text>
       </Modal>
 
-      <Modal open={won} footer={null} closable={false} width={520}>
+      {/* Winning used to be a dead end: a modal with no close, no footer and
+          nothing clickable behind it. It is dismissible now, and offers a way
+          out that is not "reload the page". */}
+      <Modal
+        open={won && !state.victorySeen}
+        onCancel={acknowledgeVictory}
+        footer={null}
+        width={540}
+      >
         <Result
           status="success"
           title={<Title level={3}>The map is one colour</Title>}
           subTitle={`Every country on Earth answers to ${countryName(
             state.homeId,
-          )}. It took ${fmtDuration((Date.now() - state.startedAt) / 1000)}, ${
-            state.battlesWon
-          } victories and ${state.techs.length} technologies.`}
+          )}. It took ${fmtDuration((Date.now() - state.startedAt) / 1000)}${
+            state.speed > 1 ? ` of real time at ${state.speed}x` : ''
+          }, ${state.battlesWon} victories, ${state.battlesLost} defeats and ${
+            state.techs.length
+          } technologies.`}
+          extra={
+            <Space direction="vertical" size={8} style={{ width: '100%' }}>
+              <Space wrap>
+                <Button type="primary" onClick={acknowledgeVictory}>
+                  Look at the map
+                </Button>
+                <Popconfirm
+                  title="Start a new game?"
+                  description="This erases the current save. Export it from the Save tab first if you want to keep it."
+                  okText="New game"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={reset}
+                >
+                  <Button danger>Start a new game</Button>
+                </Popconfirm>
+              </Space>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Your finished run is still on the Save tab if you want to export
+                it before starting over.
+              </Text>
+            </Space>
+          }
         />
       </Modal>
     </div>

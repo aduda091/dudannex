@@ -109,6 +109,19 @@ input:not([type]) {
   line-height: 1.1;
 }
 
+/* Speedrun is a whole-run commitment, so it stays visible next to the title. */
+.speed-badge {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #d89614;
+  color: #1a1206;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
 .resource-bar {
   display: flex;
   align-items: center;
@@ -251,15 +264,25 @@ input:not([type]) {
 }
 
 /* Ownership fills. Set here rather than as a `fill` attribute in the JSX so
-   that the legend below can reuse the exact same custom properties. */
+   that the legend below can reuse the exact same custom properties.
+ *
+ * Each tier strokes itself in its own fill colour, which dissolves the old
+ * internal borders: an empire reads as one landmass rather than a patchwork of
+ * the countries it swallowed. The outer edge still shows, because the unowned
+ * neighbours on the far side of it draw their own borders. A seam remains
+ * between tiers, which is worth keeping — it shows at a glance which of your
+ * territory has actually integrated. */
 .country.owned-0 {
   fill: var(--own-0);
+  stroke: var(--own-0);
 }
 .country.owned-1 {
   fill: var(--own-1);
+  stroke: var(--own-1);
 }
 .country.owned-2 {
   fill: var(--own-2);
+  stroke: var(--own-2);
 }
 
 .country.owned:hover {

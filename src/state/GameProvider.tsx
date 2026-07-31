@@ -17,6 +17,8 @@ import type { GameState } from '../game/types';
 /** Simulation step, in milliseconds. Fast enough for smooth battle bars. */
 const TICK_MS = 100;
 const AUTOSAVE_MS = 5000;
+/** Most game time a single tick may advance, before the speed multiplier. */
+const MAX_TICK_SECONDS = 60;
 
 export interface GameApi {
   state: GameState;
@@ -31,7 +33,9 @@ export interface GameApi {
    */
   warRoomOpen: boolean;
   setWarRoomOpen: (open: boolean) => void;
-  start: (countryId: string) => void;
+  start: (countryId: string, speed?: number) => void;
+  /** Mark the victory screen as seen so it stops blocking the map. */
+  acknowledgeVictory: () => void;
   build: (buildingId: string) => void;
   research: (techId: string) => void;
   declareWar: (targetId: string, commit: number) => void;
@@ -70,7 +74,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handle = window.setInterval(() => {
-      tick(stateRef.current, TICK_MS / 1000);
+      // Advance by the time that has actually passed, not by TICK_MS. Browsers
+      // throttle timers in hidden tabs — often to about 1Hz — so assuming a
+      // fixed step makes the simulation run at a tenth speed in the background
+      // while the UI still reports the full rate. Reading the clock keeps game
+      // time locked to wall time however badly the interval is starved.
+      const speed = Math.max(1, stateRef.current.speed ?? 1);
+      const elapsed = (Date.now() - stateRef.current.lastTick) / 1000;
+      // Long gaps are the offline path's job; clamp so one starved tick cannot
+      // dump an hour of progress in at once.
+      const dt = Math.min(Math.max(elapsed, 0), MAX_TICK_SECONDS);
+      if (dt > 0) tick(stateRef.current, dt * speed);
       invalidate();
     }, TICK_MS);
     return () => window.clearInterval(handle);
@@ -106,10 +120,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       derived,
       offlineGain,
       acknowledgeOffline: () => setOfflineGain(null),
-      start: (id) =>
+      start: (id, speed = 1) =>
         mutate((s) => {
-          engine.startGame(s, id);
+          engine.startGame(s, id, speed);
           saveLocal(s);
+        }),
+      acknowledgeVictory: () =>
+        mutate((s) => {
+          s.victorySeen = true;
         }),
       build: (id) => mutate((s) => engine.build(s, id)),
       research: (id) => mutate((s) => engine.research(s, id)),
